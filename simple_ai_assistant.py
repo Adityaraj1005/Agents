@@ -25,14 +25,19 @@ while True:
 
     messages.append({"role": "user", "content": user_input})
 
-    response = client.chat.completions.create(
-        model=os.getenv("MODEL"),
-        messages=messages,
-        tools=TOOLS,
-    )
-    msg = response.choices[0].message
+    
+    #chained tool Calling
+    while True:
+        response = client.chat.completions.create(
+                model=os.getenv("MODEL"),
+                messages=messages,
+                tools=TOOLS,
+            )
+        
+        msg = response.choices[0].message
+        if not msg.tool_calls:
+            break
 
-    if msg.tool_calls:
         messages.append(msg)
 
         for tool_call in msg.tool_calls:
@@ -46,13 +51,7 @@ while True:
                 "content": str(result),
             })
 
-        response = client.chat.completions.create(
-            model=os.getenv("MODEL"),
-            messages=messages,
-            tools=TOOLS,
-        )
-        msg = response.choices[0].message
-
-    answer = msg.content or ""
-    messages.append({"role": "assistant", "content": answer})
-    print("Assistant: " + answer)
+    
+    
+    messages.append({"role": "assistant", "content": msg.content})
+    print("Assistant: " + msg.content)
