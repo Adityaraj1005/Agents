@@ -1,6 +1,7 @@
 from openai import OpenAI
 from dotenv import load_dotenv
-from tools import TOOLS, FUNCTION_NAME_TO_FUNCTION_MAP
+from tools import TOOLS, run_tool
+from Utilities.utilities import log
 import os
 import json
 
@@ -11,12 +12,16 @@ client = OpenAI(
     api_key=os.getenv("API_KEY")
 )
 
-messages = [
+messages=[]
+
+MAX_STEPS=5
+
+messages.append(
     {
         "role": "system",
         "content": "Always respond under 20 words."
     }
-]
+)
 
 while True:
     user_input = input("\nADI: ")
@@ -27,7 +32,7 @@ while True:
 
     
     #chained tool Calling
-    while True:
+    for step in range(MAX_STEPS):
         response = client.chat.completions.create(
                 model=os.getenv("MODEL"),
                 messages=messages,
@@ -38,20 +43,21 @@ while True:
         if not msg.tool_calls:
             break
 
+        log(f"Step {step+1}: model requested {len(msg.tool_calls)} tool calls")
         messages.append(msg)
 
         for tool_call in msg.tool_calls:
-            func_name = tool_call.function.name
-            func_args = json.loads(tool_call.function.arguments or "{}")
-            result = FUNCTION_NAME_TO_FUNCTION_MAP[func_name](**func_args)
-
+            result=run_tool(tool_call)
             messages.append({
                 "role": "tool",
                 "tool_call_id": tool_call.id,
                 "content": str(result),
             })
-
-    
+    else:
+        fallback="Sorry,I couldnt finish this wuthin the step limit"
+        messages.append({"role": "assistant", "content": fallback})
+        print("Assistant: " + fallback)
+        continue
     
     messages.append({"role": "assistant", "content": msg.content})
-    print("Assistant: " + msg.content)
+    print("Assistant: " + (msg.content or ""))
